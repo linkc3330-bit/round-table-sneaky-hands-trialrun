@@ -11,3 +11,7 @@ Friend-test static web prototype for a two-player top-down party game.
 Move slowly near the animals. Holding too long turns the approach into a fast
 lunge, scares the animals, and makes them scatter. Slow contact catches an
 animal and scores a point.
+
+If both players push their hands into the inner ring at the same time, the
+active table range shrinks and the animals are forced into a tighter scoring
+area.

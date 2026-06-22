@@ -11,6 +11,8 @@ const requiredStrings = [
   ["game.js", "scareDistance"],
   ["game.js", "contextmenu"],
   ["game.js", "nearestLane"],
+  ["game.js", "compressedTableRadius"],
+  ["game.js", "Both hands reached the inner ring"],
   ["styles.css", "aspect-ratio"],
 ];
 

@@ -14,9 +14,13 @@ const catchDistance = 34;
 const scareDistance = 86;
 const safeVelocity = 0.38;
 const panicVelocity = 0.54;
+const innerCircleProgress = 0.68;
+const compressedTableRadius = 168;
 let lastTime = performance.now();
 let nextRoundAt = 0;
 let lastRightClickAt = 0;
+let activeTableRadius = table.r;
+let compression = 0;
 
 const hands = [
   makeHand("p1", "P1", Math.PI / 2, "#64c7ff"),
@@ -73,6 +77,8 @@ function resetRound(text = "Right-click and hold a hand lane. Feather it slowly 
     makeAnimal(3, 463, 363),
   ];
   particles = [];
+  activeTableRadius = table.r;
+  compression = 0;
   showMessage(text);
 }
 
@@ -92,6 +98,7 @@ function update(dt, now) {
   }
 
   updateHands(dt);
+  updateArenaCompression(dt);
   updateAnimals(dt);
   updateParticles(dt);
 }
@@ -114,6 +121,17 @@ function updateHands(dt) {
     hand.velocity = (hand.progress - previous) / Math.max(dt, 0.001);
     hand.catchFlash = Math.max(0, hand.catchFlash - dt);
     hand.scaredFlash = Math.max(0, hand.scaredFlash - dt);
+  }
+}
+
+function updateArenaCompression(dt) {
+  const bothHandsInInner = hands.every((hand) => hand.progress >= innerCircleProgress);
+  const targetCompression = bothHandsInInner ? 1 : 0;
+  compression += (targetCompression - compression) * Math.min(1, dt * 5.5);
+  activeTableRadius = table.r + (compressedTableRadius - table.r) * compression;
+
+  if (bothHandsInInner && compression < 0.18) {
+    showMessage("Both hands reached the inner ring. Table range shrinks!", true);
   }
 }
 
@@ -235,6 +253,20 @@ function drawTable() {
   ctx.fill();
   ctx.stroke();
 
+  if (compression > 0.02) {
+    ctx.fillStyle = `rgba(14, 16, 20, ${0.42 * compression})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, table.r - 8, 0, Math.PI * 2);
+    ctx.arc(0, 0, activeTableRadius, 0, Math.PI * 2, true);
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(255, 209, 102, ${0.38 + 0.42 * compression})`;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(0, 0, activeTableRadius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   ctx.strokeStyle = "rgba(255, 238, 210, 0.18)";
   ctx.lineWidth = 2;
   for (let r = 60; r <= table.r - 28; r += 43) {
@@ -242,6 +274,14 @@ function drawTable() {
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.stroke();
   }
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([8, 8]);
+  ctx.beginPath();
+  ctx.arc(0, 0, table.inner, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
   ctx.restore();
 }
 
@@ -383,16 +423,22 @@ function drawInstructionCard() {
   ctx.fillStyle = "rgba(22,24,28,0.76)";
   ctx.strokeStyle = "rgba(255,255,255,0.18)";
   ctx.lineWidth = 1;
-  roundRect(ctx, 722, 84, 176, 106, 8);
+  roundRect(ctx, 704, 80, 198, 128, 8);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = "#f3efe5";
   ctx.font = "800 14px system-ui";
-  ctx.fillText("Right-click rules", 810, 109);
+  ctx.fillText("Right-click rules", 803, 105);
   ctx.font = "12px system-ui";
   ctx.fillStyle = "#d5ccbd";
-  ["Hold near lane = forward", "Release = pull back", "Slow contact catches", "Fast lunge scares"].forEach(
-    (line, i) => ctx.fillText(line, 810, 133 + i * 18),
+  [
+    "Hold near lane = forward",
+    "Release = pull back",
+    "Slow contact catches",
+    "Fast lunge scares",
+    "Both in inner ring shrinks table",
+  ].forEach(
+    (line, i) => ctx.fillText(line, 803, 129 + i * 18),
   );
   ctx.restore();
 }
@@ -430,7 +476,7 @@ function keepAnimalOnTable(animal) {
   const dx = animal.x - table.x;
   const dy = animal.y - table.y;
   const dist = Math.hypot(dx, dy);
-  const max = table.r - 26;
+  const max = activeTableRadius - 26;
   if (dist > max) {
     animal.x = table.x + (dx / dist) * max;
     animal.y = table.y + (dy / dist) * max;
@@ -565,6 +611,10 @@ window.__roundTableTrial = {
         pressed: hand.pressed,
         tip: handTip(hand),
       })),
+      arena: {
+        compression: Number(compression.toFixed(2)),
+        activeTableRadius: Math.round(activeTableRadius),
+      },
       animals: animals.map((animal) => ({
         id: animal.id,
         x: Math.round(animal.x),

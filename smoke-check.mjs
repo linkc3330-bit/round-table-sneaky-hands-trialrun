@@ -2,16 +2,14 @@ import { readFile } from "node:fs/promises";
 
 const requiredFiles = ["index.html", "styles.css", "game.js"];
 const requiredStrings = [
-  ["index.html", "gameCanvas"],
-  ["index.html", "data-hold=\"p1\""],
-  ["index.html", "data-hold=\"p2\""],
-  ["game.js", "drawLogo"],
-  ["game.js", "drawRuleCard"],
-  ["game.js", "drawFlowCards"],
-  ["game.js", "contextmenu"],
-  ["game.js", "nearestLane"],
-  ["game.js", "compressedTableRadius"],
-  ["game.js", "Both hands reached the inner ring"],
+  ["index.html", "Sightline Scare Study"],
+  ["index.html", "Autoplay diagram"],
+  ["game.js", "autoplay-note1-animation"],
+  ["game.js", "drawSightlines"],
+  ["game.js", "drawVisionCone"],
+  ["game.js", "threatStack"],
+  ["game.js", "Scare triggers retreat"],
+  ["game.js", "controlsEnabled: false"],
   ["styles.css", "aspect-ratio"],
 ];
 
@@ -25,4 +23,4 @@ for (const [file, needle] of requiredStrings) {
   if (!text.includes(needle)) throw new Error(`${file} missing ${needle}`);
 }
 
-console.log("smoke-check passed: diagram-first board remake files and hooks exist");
+console.log("smoke-check passed: note.1 autoplay sightline animation exists");

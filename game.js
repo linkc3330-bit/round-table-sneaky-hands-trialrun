@@ -2,240 +2,106 @@ const canvas = document.querySelector("#gameCanvas");
 const ctx = canvas.getContext("2d");
 const messageEl = document.querySelector("#message");
 const bannerEl = document.querySelector("#roundBanner");
-const p1ScoreEl = document.querySelector("#p1Score");
-const p2ScoreEl = document.querySelector("#p2Score");
-const resetButton = document.querySelector("#resetButton");
+const phaseLabelEl = document.querySelector("#phaseLabel");
 
-const table = { x: 500, y: 338, r: 282, inner: 112 };
-const laneOuter = 318;
-const laneInner = 68;
-const catchDistance = 33;
-const scareDistance = 84;
-const safeVelocity = 0.34;
-const panicVelocity = 0.52;
-const innerCircleProgress = 0.68;
-const compressedTableRadius = 198;
-const score = { p1: 0, p2: 0 };
-
-let activeTableRadius = table.r;
-let compression = 0;
-let lastTime = performance.now();
-let nextRoundAt = 0;
-let lastRightClickAt = 0;
-let animals = [];
-let particles = [];
+const table = { x: 500, y: 350, r: 282, inner: 112 };
+const loopSeconds = 13.5;
+let startTime = performance.now();
+let lastPhase = "";
 
 const hands = [
-  makeHand("p1", "P1", -Math.PI / 2, "#57bfff", true),
-  makeHand("p2", "P2", 0.1, "#b377ff", true),
-  makeHand("p3", "P3", 0.95, "#70d995", false),
-  makeHand("p4", "P4", 2.18, "#ffd166", false),
-  makeHand("p5", "P5", 3.03, "#ff7b8a", false),
-  makeHand("p6", "P6", -2.55, "#58d8c5", false),
+  { id: "p1", label: "P1", angle: -Math.PI / 2, color: "#57bfff", active: true, offset: 0.05 },
+  { id: "p2", label: "P2", angle: 0.1, color: "#b377ff", active: true, offset: 0.25 },
+  { id: "p3", label: "P3", angle: 0.95, color: "#70d995", active: false, offset: 0.18 },
+  { id: "p4", label: "P4", angle: 2.18, color: "#ffd166", active: false, offset: 0.3 },
+  { id: "p5", label: "P5", angle: 3.03, color: "#ff7b8a", active: false, offset: 0.22 },
+  { id: "p6", label: "P6", angle: -2.55, color: "#58d8c5", active: false, offset: 0.16 },
 ];
 
-function makeHand(id, label, angle, color, active) {
-  return {
-    id,
-    label,
-    angle,
-    color,
-    active,
-    progress: active ? 0 : 0.16 + Math.random() * 0.15,
-    velocity: 0,
-    pressed: false,
-    holdTime: 0,
-    catchFlash: 0,
-    scaredFlash: 0,
-  };
-}
+const animals = [
+  { id: 0, type: "bunny", x: 462, y: 318, look: -1.45 },
+  { id: 1, type: "cat", x: 528, y: 306, look: 0.05 },
+  { id: 2, type: "duck", x: 565, y: 366, look: 0.8 },
+  { id: 3, type: "hedgehog", x: 493, y: 404, look: 1.75 },
+  { id: 4, type: "hamster", x: 438, y: 370, look: 2.8 },
+];
 
-function makeAnimal(i, x, y) {
-  const types = ["bunny", "cat", "duck", "hedgehog", "hamster"];
-  return {
-    id: i,
-    type: types[i % types.length],
-    x,
-    y,
-    vx: 0,
-    vy: 0,
-    panic: 0,
-    caught: false,
-    wobble: Math.random() * Math.PI * 2,
-  };
-}
-
-function resetRound(text = "Right-click and hold P1 or P2. Slow hands catch; lunges scare.") {
-  for (const hand of hands) {
-    hand.progress = hand.active ? 0 : 0.16 + Math.random() * 0.15;
-    hand.velocity = 0;
-    hand.pressed = false;
-    hand.holdTime = 0;
-    hand.catchFlash = 0;
-    hand.scaredFlash = 0;
+function phaseAt(t) {
+  if (t < 2.2) {
+    return {
+      key: "Sightlines",
+      caption: "Note.1: animals have sightlines. A hand inside sightline is watched.",
+    };
   }
-
-  animals = [
-    makeAnimal(0, 456, 302),
-    makeAnimal(1, 520, 292),
-    makeAnimal(2, 555, 350),
-    makeAnimal(3, 492, 388),
-    makeAnimal(4, 438, 358),
-  ];
-  particles = [];
-  activeTableRadius = table.r;
-  compression = 0;
-  showMessage(text);
+  if (t < 5.1) {
+    return {
+      key: "Motion Seen",
+      caption: "When a watched hand moves, threat starts building before contact.",
+    };
+  }
+  if (t < 8.2) {
+    return {
+      key: "Threat Stack",
+      caption: "Other hands inside the same sightline add pressure to the animal.",
+    };
+  }
+  if (t < 10.8) {
+    return {
+      key: "Scare",
+      caption: "Threat crosses the scare threshold. Animals retreat away from the moving hand.",
+    };
+  }
+  return {
+    key: "Reset",
+    caption: "The loop resets as a concept animation, not a playable control prototype.",
+  };
 }
 
-function showMessage(text, urgent = false) {
-  messageEl.textContent = text;
-  bannerEl.textContent = text;
+function handProgress(hand, t) {
+  if (!hand.active) return 0.16 + hand.offset + Math.sin(t * 1.3 + hand.angle) * 0.02;
+  if (hand.id === "p1") return easePulse(t, 1.2, 7.7, 0.08, 0.86);
+  if (hand.id === "p2") return easePulse(t, 3.2, 8.3, 0.08, 0.76);
+  return 0.15;
+}
+
+function easePulse(t, start, peak, low, high) {
+  if (t < start) return low;
+  if (t < peak) return low + (high - low) * smoothstep((t - start) / (peak - start));
+  if (t < 11.2) return high - (high - low) * smoothstep((t - peak) / (11.2 - peak));
+  return low;
+}
+
+function updateDom(phase) {
+  if (phase.key === lastPhase) return;
+  lastPhase = phase.key;
+  phaseLabelEl.textContent = phase.key;
+  messageEl.textContent = phase.caption;
+  bannerEl.textContent = phase.caption;
   bannerEl.classList.add("show");
-  bannerEl.style.color = urgent ? "#ff8c92" : "#ffd166";
-  window.clearTimeout(showMessage.timer);
-  showMessage.timer = window.setTimeout(() => bannerEl.classList.remove("show"), 1700);
+  window.clearTimeout(updateDom.timer);
+  updateDom.timer = window.setTimeout(() => bannerEl.classList.remove("show"), 1800);
 }
 
-function update(dt, now) {
-  if (nextRoundAt && now > nextRoundAt) {
-    nextRoundAt = 0;
-    resetRound("Fresh animals. Both inner hands shrink the table.");
-  }
+function draw(now) {
+  const t = ((now - startTime) / 1000) % loopSeconds;
+  const phase = phaseAt(t);
+  updateDom(phase);
 
-  updateHands(dt);
-  updateArenaCompression(dt);
-  updateAnimals(dt);
-  updateParticles(dt);
-}
-
-function updateHands(dt) {
-  for (const hand of hands) {
-    const previous = hand.progress;
-
-    if (!hand.active) {
-      hand.progress += Math.sin(performance.now() / 1000 + hand.angle * 3) * 0.002;
-      hand.progress = clamp(hand.progress, 0.08, 0.38);
-      continue;
-    }
-
-    if (hand.pressed) {
-      hand.holdTime += dt;
-      const ramp = Math.min(1, hand.holdTime / 1.15);
-      const targetSpeed = 0.16 + ramp * 0.52;
-      hand.progress += targetSpeed * dt;
-    } else {
-      hand.holdTime = 0;
-      hand.progress -= 0.34 * dt;
-    }
-
-    hand.progress = clamp(hand.progress, 0, 1);
-    hand.velocity = (hand.progress - previous) / Math.max(dt, 0.001);
-    hand.catchFlash = Math.max(0, hand.catchFlash - dt);
-    hand.scaredFlash = Math.max(0, hand.scaredFlash - dt);
-  }
-}
-
-function updateArenaCompression(dt) {
-  const activeHands = hands.filter((hand) => hand.active);
-  const bothHandsInInner = activeHands.every((hand) => hand.progress >= innerCircleProgress);
-  const targetCompression = bothHandsInInner ? 1 : 0;
-  compression += (targetCompression - compression) * Math.min(1, dt * 5.5);
-  activeTableRadius = table.r + (compressedTableRadius - table.r) * compression;
-
-  if (bothHandsInInner && compression < 0.18) {
-    showMessage("Both hands reached the inner ring. The table shrinks!", true);
-  }
-}
-
-function updateAnimals(dt) {
-  for (const animal of animals) {
-    if (animal.caught) continue;
-
-    animal.wobble += dt * 3;
-    let strongestThreat = null;
-
-    for (const hand of hands.filter((item) => item.active)) {
-      const tip = handTip(hand);
-      const dx = animal.x - tip.x;
-      const dy = animal.y - tip.y;
-      const dist = Math.hypot(dx, dy);
-
-      if (dist < catchDistance && Math.abs(hand.velocity) < safeVelocity) {
-        catchAnimal(animal, hand);
-        continue;
-      }
-
-      if (dist < scareDistance && hand.velocity > panicVelocity) {
-        strongestThreat = { hand, dx, dy, dist };
-      }
-    }
-
-    if (strongestThreat) {
-      const awayX = strongestThreat.dx / Math.max(1, strongestThreat.dist);
-      const awayY = strongestThreat.dy / Math.max(1, strongestThreat.dist);
-      animal.vx += awayX * 560 * dt;
-      animal.vy += awayY * 560 * dt;
-      animal.panic = 1;
-      strongestThreat.hand.scaredFlash = 0.5;
-      spawnParticles(animal.x, animal.y, "#ff5f6d", 6);
-      showMessage(`${strongestThreat.hand.label} lunged. Animals scatter!`, true);
-    } else {
-      animal.vx += Math.cos(animal.wobble) * 9 * dt;
-      animal.vy += Math.sin(animal.wobble * 0.85) * 9 * dt;
-      animal.panic = Math.max(0, animal.panic - dt * 0.92);
-    }
-
-    animal.x += animal.vx * dt;
-    animal.y += animal.vy * dt;
-    animal.vx *= Math.pow(0.74, dt * 5);
-    animal.vy *= Math.pow(0.74, dt * 5);
-    keepAnimalOnTable(animal);
-  }
-}
-
-function catchAnimal(animal, hand) {
-  if (animal.caught) return;
-  animal.caught = true;
-  score[hand.id] += 1;
-  hand.catchFlash = 0.75;
-  p1ScoreEl.textContent = score.p1;
-  p2ScoreEl.textContent = score.p2;
-  spawnParticles(animal.x, animal.y, hand.color, 18);
-  showMessage(`${hand.label} caught the ${animal.type}.`);
-
-  if (animals.every((item) => item.caught)) {
-    const result =
-      score.p1 === score.p2 ? "Tied table" : score.p1 > score.p2 ? "P1 leads" : "P2 leads";
-    showMessage(`${result}. Resetting snacks...`);
-    nextRoundAt = performance.now() + 1400;
-  }
-}
-
-function updateParticles(dt) {
-  for (const p of particles) {
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.life -= dt;
-  }
-  particles = particles.filter((p) => p.life > 0);
-}
-
-function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawBoardBackdrop();
-  drawTable();
-  drawLanes();
-  drawAnimals();
-  drawHands();
-  drawParticles();
+  drawBackdrop();
+  drawTable(t);
+  drawSightlines(t);
+  drawThreatRange(t);
+  drawLanesAndHands(t);
+  drawAnimals(t);
   drawLogo();
-  drawRuleCard();
-  drawFlowCards();
-  drawProps();
+  drawRuleCard(t);
+  drawTimeline(t, phase);
+
+  requestAnimationFrame(draw);
 }
 
-function drawBoardBackdrop() {
+function drawBackdrop() {
   const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
   bg.addColorStop(0, "#2a3037");
   bg.addColorStop(1, "#171a1f");
@@ -243,20 +109,17 @@ function drawBoardBackdrop() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = "rgba(255,255,255,0.025)";
-  for (let x = -40; x < canvas.width; x += 56) {
-    ctx.fillRect(x, 0, 2, canvas.height);
-  }
+  for (let x = -40; x < canvas.width; x += 56) ctx.fillRect(x, 0, 2, canvas.height);
 }
 
-function drawTable() {
+function drawTable(t) {
   ctx.save();
   ctx.translate(table.x, table.y);
-
-  const tableGradient = ctx.createRadialGradient(-60, -80, 40, 0, 0, table.r + 30);
-  tableGradient.addColorStop(0, "#b87743");
-  tableGradient.addColorStop(0.62, "#935d34");
-  tableGradient.addColorStop(1, "#5f341f");
-  ctx.fillStyle = tableGradient;
+  const gradient = ctx.createRadialGradient(-70, -90, 40, 0, 0, table.r + 30);
+  gradient.addColorStop(0, "#b87743");
+  gradient.addColorStop(0.62, "#935d34");
+  gradient.addColorStop(1, "#5f341f");
+  ctx.fillStyle = gradient;
   ctx.strokeStyle = "#d79a5e";
   ctx.lineWidth = 14;
   ctx.beginPath();
@@ -272,20 +135,6 @@ function drawTable() {
     ctx.stroke();
   }
 
-  if (compression > 0.02) {
-    ctx.fillStyle = `rgba(19, 16, 13, ${0.46 * compression})`;
-    ctx.beginPath();
-    ctx.arc(0, 0, table.r - 8, 0, Math.PI * 2);
-    ctx.arc(0, 0, activeTableRadius, 0, Math.PI * 2, true);
-    ctx.fill();
-
-    ctx.strokeStyle = `rgba(255, 209, 102, ${0.4 + 0.44 * compression})`;
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.arc(0, 0, activeTableRadius, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
   ctx.strokeStyle = "rgba(255, 255, 255, 0.32)";
   ctx.lineWidth = 3;
   ctx.setLineDash([8, 8]);
@@ -293,17 +142,70 @@ function drawTable() {
   ctx.arc(0, 0, table.inner, 0, Math.PI * 2);
   ctx.stroke();
   ctx.setLineDash([]);
+
+  if (t > 8.2 && t < 11.2) {
+    const flash = Math.sin(t * 12) * 0.5 + 0.5;
+    ctx.strokeStyle = `rgba(255, 95, 109, ${0.35 + flash * 0.35})`;
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.arc(0, 0, 168, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
-function drawLanes() {
-  for (const hand of hands) {
-    const outer = lanePoint(hand.angle, laneOuter);
-    const inner = lanePoint(hand.angle, laneInner);
-    const tip = handTip(hand);
-    const fast = hand.velocity > panicVelocity;
+function drawSightlines(t) {
+  const alpha = t < 2.2 ? 0.32 : t < 8.2 ? 0.22 : 0.14;
+  for (const animal of animals) {
+    const panic = t > 8.2 && t < 10.8;
+    const look = panic ? animal.look + Math.sin(t * 12 + animal.id) * 0.32 : animal.look;
+    drawVisionCone(animal.x, animal.y, look, 118, alpha, panic);
+  }
+}
 
-    ctx.strokeStyle = fast ? "rgba(255,95,109,0.78)" : hexToRgba(hand.color, hand.active ? 0.58 : 0.28);
+function drawVisionCone(x, y, angle, length, alpha, panic) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = panic ? `rgba(255, 95, 109, ${alpha})` : `rgba(255, 209, 102, ${alpha})`;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(length, -34);
+  ctx.arc(length, 0, 34, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(0, 0);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawThreatRange(t) {
+  const stack = threatStack(t);
+  if (stack <= 0.02) return;
+  const radius = 78 + stack * 72;
+  ctx.save();
+  ctx.translate(500, 352);
+  ctx.strokeStyle = stack > 0.72 ? "rgba(255, 95, 109, 0.78)" : "rgba(255, 209, 102, 0.68)";
+  ctx.fillStyle = stack > 0.72 ? "rgba(255, 95, 109, 0.13)" : "rgba(255, 209, 102, 0.09)";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#f7edda";
+  ctx.font = "900 16px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(`Threat stack ${Math.round(stack * 100)}%`, 0, -radius - 12);
+  ctx.restore();
+}
+
+function drawLanesAndHands(t) {
+  for (const hand of hands) {
+    const progress = handProgress(hand, t);
+    const outer = lanePoint(hand.angle, 318);
+    const inner = lanePoint(hand.angle, 70);
+    const tip = lanePoint(hand.angle, 318 - (318 - 70) * progress);
+    const moving = hand.active && ((hand.id === "p1" && t > 1.2 && t < 7.7) || (hand.id === "p2" && t > 3.2 && t < 8.3));
+
+    ctx.strokeStyle = moving ? "rgba(255, 209, 102, 0.86)" : hexToRgba(hand.color, hand.active ? 0.58 : 0.28);
     ctx.lineWidth = hand.active ? 9 : 5;
     ctx.lineCap = "round";
     ctx.beginPath();
@@ -311,84 +213,81 @@ function drawLanes() {
     ctx.lineTo(inner.x, inner.y);
     ctx.stroke();
 
-    if (hand.active) {
-      ctx.strokeStyle = "rgba(255,255,255,0.38)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([7, 9]);
-      ctx.beginPath();
-      ctx.moveTo(outer.x, outer.y);
-      ctx.lineTo(tip.x, tip.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      drawArrow(tip.x, tip.y, hand.angle + Math.PI, hand.color);
-    }
+    if (moving) drawMotionTicks(tip.x, tip.y, hand.angle, hand.color);
+    drawHand(hand, tip, progress, moving, t);
   }
 }
 
-function drawHands() {
-  for (const hand of hands) {
-    const base = lanePoint(hand.angle, laneOuter + 20);
-    const tip = handTip(hand);
-    const fast = hand.velocity > panicVelocity;
-
-    if (fast) {
-      ctx.strokeStyle = "rgba(255, 95, 109, 0.45)";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.arc(tip.x, tip.y, scareDistance, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    ctx.save();
-    ctx.translate(tip.x, tip.y);
-    ctx.rotate(hand.angle + Math.PI);
-    ctx.fillStyle = hand.catchFlash ? "#f8f1c7" : hand.color;
-    ctx.globalAlpha = hand.active ? 1 : 0.72;
-    ctx.strokeStyle = fast || hand.scaredFlash ? "#ff5f6d" : "#101217";
-    ctx.lineWidth = fast ? 5 : 3;
-    roundRect(ctx, -34, -20, 68, 40, 18);
+function drawHand(hand, tip, progress, moving, t) {
+  const base = lanePoint(hand.angle, 340);
+  const panic = t > 8.2 && t < 10.8 && moving;
+  ctx.save();
+  ctx.translate(tip.x, tip.y);
+  ctx.rotate(hand.angle + Math.PI);
+  ctx.globalAlpha = hand.active ? 1 : 0.72;
+  ctx.fillStyle = panic ? "#ff8c92" : hand.color;
+  ctx.strokeStyle = panic ? "#ff5f6d" : "#101217";
+  ctx.lineWidth = panic ? 5 : 3;
+  roundRect(ctx, -34, -20, 68, 40, 18);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.62)";
+  for (let i = 0; i < 4; i += 1) {
+    roundRect(ctx, 11, -18 + i * 9, 25, 6, 4);
     ctx.fill();
+  }
+  ctx.restore();
+
+  ctx.fillStyle = hand.active ? "#f7edda" : "rgba(247,237,218,0.62)";
+  ctx.font = "900 15px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(hand.label, base.x, base.y + 5);
+
+  if (hand.active && progress > 0.58) {
+    ctx.strokeStyle = "rgba(255,255,255,0.42)";
+    ctx.setLineDash([6, 8]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, 66, 0, Math.PI * 2);
     ctx.stroke();
-
-    ctx.fillStyle = "rgba(255,255,255,0.62)";
-    for (let i = 0; i < 4; i += 1) {
-      roundRect(ctx, 11, -18 + i * 9, 25, 6, 4);
-      ctx.fill();
-    }
-    ctx.restore();
-
-    ctx.fillStyle = hand.active ? "#f7edda" : "rgba(247,237,218,0.62)";
-    ctx.font = "900 15px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillText(hand.label, base.x, base.y + 5);
+    ctx.setLineDash([]);
   }
 }
 
-function drawAnimals() {
+function drawMotionTicks(x, y, angle, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle + Math.PI);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(-56 - i * 12, -14 + i * 14);
+    ctx.lineTo(-38 - i * 10, -6 + i * 10);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawAnimals(t) {
+  const panic = t > 8.2 && t < 10.8;
   for (const animal of animals) {
-    if (animal.caught) continue;
-    const pulse = 1 + animal.panic * 0.24 * Math.sin(performance.now() / 70);
+    const retreat = panic ? retreatOffset(animal, t) : { x: 0, y: 0 };
+    const pulse = panic ? 1 + 0.18 * Math.sin(t * 18 + animal.id) : 1;
     ctx.save();
-    ctx.translate(animal.x, animal.y);
+    ctx.translate(animal.x + retreat.x, animal.y + retreat.y);
     ctx.scale(pulse, pulse);
-    ctx.fillStyle = animal.panic > 0.05 ? "#ff6d78" : "#f5e7bf";
-    ctx.strokeStyle = animal.panic > 0.05 ? "#ffd166" : "#2b2520";
+    ctx.fillStyle = panic ? "#ff6d78" : "#f5e7bf";
+    ctx.strokeStyle = panic ? "#ffd166" : "#2b2520";
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.ellipse(0, 0, 22, 17, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-
-    if (animal.type === "bunny") {
-      drawBunny();
-    } else if (animal.type === "cat") {
-      drawCat();
-    } else if (animal.type === "duck") {
-      drawDuck();
-    } else if (animal.type === "hedgehog") {
-      drawHedgehog();
-    }
-
+    if (animal.type === "bunny") drawBunny();
+    if (animal.type === "cat") drawCat();
+    if (animal.type === "duck") drawDuck();
+    if (animal.type === "hedgehog") drawHedgehog();
     ctx.fillStyle = "#111";
     ctx.beginPath();
     ctx.arc(-7, -2, 2.3, 0, Math.PI * 2);
@@ -396,6 +295,14 @@ function drawAnimals() {
     ctx.fill();
     ctx.restore();
   }
+}
+
+function retreatOffset(animal, t) {
+  const dx = animal.x - table.x;
+  const dy = animal.y - table.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const amount = 26 + Math.sin(t * 12 + animal.id) * 8;
+  return { x: (dx / dist) * amount, y: (dy / dist) * amount };
 }
 
 function drawBunny() {
@@ -455,98 +362,68 @@ function drawLogo() {
   ctx.fillText("HANDS", 0, 22);
   ctx.font = "700 10px system-ui";
   ctx.fillStyle = "#f7edda";
-  ctx.fillText("catch 'em if you can", 0, 39);
+  ctx.fillText("sightline demo", 0, 39);
   ctx.restore();
 }
 
-function drawRuleCard() {
+function drawRuleCard(t) {
   ctx.save();
-  ctx.translate(808, 120);
+  ctx.translate(815, 124);
   ctx.fillStyle = "#fff0ca";
   ctx.strokeStyle = "#6b472e";
   ctx.lineWidth = 3;
-  roundRect(ctx, -78, -58, 156, 136, 10);
+  roundRect(ctx, -88, -64, 176, 156, 10);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = "#47311f";
   ctx.font = "900 14px system-ui";
   ctx.textAlign = "center";
-  ctx.fillText("2P Rules", 0, -34);
+  ctx.fillText("Note.1 model", 0, -40);
   ctx.font = "700 11px system-ui";
   [
-    "Right-click: sneak",
-    "Release: pull back",
-    "Slow touch: score",
-    "Fast lunge: scatter",
-    "Both inner: shrink",
-  ].forEach((line, i) => ctx.fillText(line, 0, -10 + i * 19));
+    "Animals have sightlines",
+    "Moving hand is noticed",
+    "Other hands add threat",
+    "Threat range scales",
+    "Scare triggers retreat",
+  ].forEach((line, i) => ctx.fillText(line, 0, -14 + i * 21));
+  ctx.fillStyle = "#a53d38";
+  ctx.fillText(`Threat ${Math.round(threatStack(t) * 100)}%`, 0, 80);
   ctx.restore();
 }
 
-function drawFlowCards() {
-  const cards = [
-    ["1", "Slowly move", "your hand"],
-    ["2", "Animals react", "to fast lunges"],
-    ["3", "The table", "can shrink"],
-    ["4", "Catch one", "to score"],
+function drawTimeline(t, phase) {
+  const steps = [
+    ["1", "Sightlines"],
+    ["2", "Hand moves"],
+    ["3", "Threat stacks"],
+    ["4", "Scare retreat"],
   ];
   ctx.save();
-  ctx.translate(258, 640);
-  cards.forEach((card, i) => {
-    const x = i * 128;
-    ctx.fillStyle = "#fff0ca";
+  ctx.translate(245, 642);
+  steps.forEach((step, i) => {
+    const active = phase.key.toLowerCase().includes(step[1].split(" ")[0].toLowerCase());
+    const x = i * 138;
+    ctx.fillStyle = active ? "#ffd166" : "#fff0ca";
     ctx.strokeStyle = "#7f5332";
     ctx.lineWidth = 2;
-    roundRect(ctx, x, -42, 116, 64, 8);
+    roundRect(ctx, x, -42, 124, 64, 8);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = "#1d4d7a";
     ctx.font = "900 13px system-ui";
     ctx.textAlign = "left";
-    ctx.fillText(`${card[0]}. ${card[1]}`, x + 10, -16);
-    ctx.fillStyle = "#7a3b24";
-    ctx.font = "800 10px system-ui";
-    ctx.fillText(card[2], x + 10, 3);
+    ctx.fillText(`${step[0]}. ${step[1]}`, x + 10, -7);
   });
   ctx.restore();
 }
 
-function drawProps() {
-  ctx.save();
-  ctx.fillStyle = "#1c1f25";
-  ctx.strokeStyle = "#5b6a7c";
-  ctx.lineWidth = 3;
-  roundRect(ctx, 846, 505, 86, 124, 12);
-  ctx.fill();
-  ctx.stroke();
-  ctx.strokeStyle = "#c98745";
-  ctx.strokeRect(860, 520, 58, 88);
-
-  ctx.fillStyle = "#f7edda";
-  ctx.strokeStyle = "#39271a";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(83, 558, 34, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#3c2416";
-  ctx.beginPath();
-  ctx.arc(83, 558, 23, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawParticles() {
-  for (const p of particles) {
-    ctx.fillStyle = hexToRgba(p.color, Math.min(1, p.life * 1.8));
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 4 + p.life * 4, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function handTip(hand) {
-  return lanePoint(hand.angle, laneOuter - (laneOuter - laneInner) * hand.progress);
+function threatStack(t) {
+  if (t < 2.2) return 0;
+  if (t < 5.1) return smoothstep((t - 2.2) / 2.9) * 0.42;
+  if (t < 8.2) return 0.42 + smoothstep((t - 5.1) / 3.1) * 0.48;
+  if (t < 10.8) return 1;
+  return Math.max(0, 1 - smoothstep((t - 10.8) / 2.7));
 }
 
 function lanePoint(angle, radius) {
@@ -554,100 +431,6 @@ function lanePoint(angle, radius) {
     x: table.x + Math.cos(angle) * radius,
     y: table.y + Math.sin(angle) * radius,
   };
-}
-
-function nearestLane(point) {
-  return hands
-    .filter((hand) => hand.active)
-    .reduce((closest, hand) => {
-      const tip = handTip(hand);
-      const base = lanePoint(hand.angle, laneOuter + 26);
-      const dist = Math.min(Math.hypot(point.x - tip.x, point.y - tip.y), distanceToSegment(point, base, tip));
-      return !closest || dist < closest.dist ? { hand, dist } : closest;
-    }, null).hand;
-}
-
-function distanceToSegment(point, a, b) {
-  const vx = b.x - a.x;
-  const vy = b.y - a.y;
-  const wx = point.x - a.x;
-  const wy = point.y - a.y;
-  const t = clamp((wx * vx + wy * vy) / Math.max(1, vx * vx + vy * vy), 0, 1);
-  return Math.hypot(point.x - (a.x + vx * t), point.y - (a.y + vy * t));
-}
-
-function keepAnimalOnTable(animal) {
-  const dx = animal.x - table.x;
-  const dy = animal.y - table.y;
-  const dist = Math.hypot(dx, dy);
-  const max = activeTableRadius - 30;
-  if (dist > max) {
-    animal.x = table.x + (dx / dist) * max;
-    animal.y = table.y + (dy / dist) * max;
-    animal.vx *= -0.22;
-    animal.vy *= -0.22;
-    animal.panic = Math.max(animal.panic, 0.45);
-  }
-}
-
-function drawArrow(x, y, angle, color) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(-18, 0);
-  ctx.lineTo(14, 0);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(20, 0);
-  ctx.lineTo(8, -7);
-  ctx.lineTo(8, 7);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-function spawnParticles(x, y, color, count) {
-  for (let i = 0; i < count; i += 1) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 55 + Math.random() * 155;
-    particles.push({
-      x,
-      y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      color,
-      life: 0.32 + Math.random() * 0.44,
-    });
-  }
-}
-
-function canvasPoint(event) {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: ((event.clientX - rect.left) / rect.width) * canvas.width,
-    y: ((event.clientY - rect.top) / rect.height) * canvas.height,
-  };
-}
-
-function setPressed(id, pressed) {
-  const hand = hands.find((item) => item.id === id);
-  if (!hand || !hand.active) return;
-  hand.pressed = pressed;
-  if (pressed) showMessage(`${hand.label} sneaking inward. Release before it becomes a lunge.`);
-}
-
-function releaseAllHands() {
-  hands.forEach((hand) => {
-    hand.pressed = false;
-  });
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
 }
 
 function hexToRgba(hex, alpha) {
@@ -663,86 +446,21 @@ function roundRect(context, x, y, width, height, radius) {
   context.roundRect(x, y, width, height, radius);
 }
 
-function loop(now) {
-  const dt = Math.min(0.033, (now - lastTime) / 1000);
-  lastTime = now;
-  update(dt, now);
-  draw();
-  requestAnimationFrame(loop);
+function smoothstep(value) {
+  const x = Math.max(0, Math.min(1, value));
+  return x * x * (3 - 2 * x);
 }
-
-canvas.addEventListener("contextmenu", (event) => event.preventDefault());
-
-canvas.addEventListener("pointerdown", (event) => {
-  if (event.button !== 2 && event.pointerType !== "touch") return;
-  event.preventDefault();
-  const now = performance.now();
-  const hand = nearestLane(canvasPoint(event));
-  if (now - lastRightClickAt < 260) hand.holdTime = 1.25;
-  lastRightClickAt = now;
-  setPressed(hand.id, true);
-  canvas.setPointerCapture(event.pointerId);
-});
-
-canvas.addEventListener("pointerup", (event) => {
-  event.preventDefault();
-  releaseAllHands();
-});
-
-canvas.addEventListener("pointercancel", releaseAllHands);
-canvas.addEventListener("pointerleave", releaseAllHands);
-
-document.querySelectorAll("[data-hold]").forEach((button) => {
-  const id = button.dataset.hold;
-  const start = (event) => {
-    event.preventDefault();
-    setPressed(id, true);
-  };
-  const end = (event) => {
-    event.preventDefault();
-    setPressed(id, false);
-  };
-  button.addEventListener("pointerdown", start);
-  button.addEventListener("pointerup", end);
-  button.addEventListener("pointercancel", end);
-  button.addEventListener("pointerleave", end);
-  button.addEventListener("contextmenu", (event) => event.preventDefault());
-});
-
-resetButton.addEventListener("click", () => {
-  score.p1 = 0;
-  score.p2 = 0;
-  p1ScoreEl.textContent = "0";
-  p2ScoreEl.textContent = "0";
-  resetRound("Scores reset. Right-click P1 or P2 to sneak.");
-});
 
 window.__roundTableTrial = {
   getState() {
+    const t = ((performance.now() - startTime) / 1000) % loopSeconds;
     return {
-      score: { ...score },
-      hands: hands.map((hand) => ({
-        id: hand.id,
-        active: hand.active,
-        progress: Number(hand.progress.toFixed(2)),
-        velocity: Number(hand.velocity.toFixed(2)),
-        pressed: hand.pressed,
-      })),
-      arena: {
-        compression: Number(compression.toFixed(2)),
-        activeTableRadius: Math.round(activeTableRadius),
-      },
-      animals: animals.map((animal) => ({
-        id: animal.id,
-        x: Math.round(animal.x),
-        y: Math.round(animal.y),
-        panic: Number(animal.panic.toFixed(2)),
-        caught: animal.caught,
-      })),
-      message: messageEl.textContent,
+      mode: "autoplay-note1-animation",
+      phase: phaseAt(t).key,
+      threat: Number(threatStack(t).toFixed(2)),
+      controlsEnabled: false,
     };
   },
 };
 
-resetRound();
-requestAnimationFrame(loop);
+requestAnimationFrame(draw);

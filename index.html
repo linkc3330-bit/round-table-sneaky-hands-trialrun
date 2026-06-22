@@ -3,26 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sneaky Hands TrialRun</title>
+    <title>Sneaky Hands Sightline Animation</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="board-shell">
-      <section class="status-bar" aria-label="Game status">
+    <main class="anim-shell">
+      <section class="status-bar" aria-label="Animation status">
         <div class="brand">
           <span class="brand-mark">Sneaky<br />Hands</span>
-          <p>Right-click and hold a hand lane. Release before the animals panic.</p>
+          <div>
+            <h1>Sightline Scare Study</h1>
+            <p>Autoplay diagram. No player controls. Note.1 focuses on animal vision and threat stacking.</p>
+          </div>
         </div>
-        <div class="scoreboard" aria-live="polite">
-          <div class="score-card p1">
-            <span>P1</span>
-            <strong id="p1Score">0</strong>
-          </div>
-          <div class="score-card p2">
-            <span>P2</span>
-            <strong id="p2Score">0</strong>
-          </div>
-          <button id="resetButton" type="button">Reset</button>
+        <div class="phase-panel" aria-live="polite">
+          <span>Phase</span>
+          <strong id="phaseLabel">Sightlines</strong>
         </div>
       </section>
 
@@ -31,17 +27,15 @@
           id="gameCanvas"
           width="1000"
           height="720"
-          aria-label="Sneaky Hands round table board"
+          aria-label="Autoplay animation explaining animal sightlines and scare triggers"
         ></canvas>
         <div id="roundBanner" class="round-banner" aria-live="assertive"></div>
       </section>
 
-      <section class="mobile-controls" aria-label="Touch controls">
-        <button class="hold-button p1-button" data-hold="p1" type="button">Hold P1 Lane</button>
+      <section class="caption-strip" aria-label="Animation caption">
         <div id="message" class="message" aria-live="polite">
-          Right-click and hold near P1 or P2 to sneak inward.
+          Animals watch nearby lanes. A moving hand inside sightline builds threat.
         </div>
-        <button class="hold-button p2-button" data-hold="p2" type="button">Hold P2 Lane</button>
       </section>
     </main>
 

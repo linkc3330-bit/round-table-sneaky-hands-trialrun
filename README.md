@@ -1,19 +1,13 @@
-# Sneaky Hands TrialRun
+# Sneaky Hands Sightline Animation
 
-Diagram-first friend-test build for a top-down table party game.
+Autoplay concept animation for Note.1. This is not a playable game build.
 
-## Controls
+## Note.1 Focus
 
-- Right-click and hold near the P1 or P2 lane to sneak that hand toward the center.
-- Release to pull the hand back.
-- Mobile fallback: hold the P1/P2 lane buttons.
+- Animals have a sightline / attention range.
+- A moving hand inside that sightline builds threat.
+- Other hands inside the watched range add pressure.
+- Threat range should scale with player count.
+- When threat crosses the scare threshold, animals retreat away from the moving hand.
 
-Move slowly near the animals. Holding too long becomes a lunge, scares the
-animals, and makes them scatter. Slow contact catches an animal and scores a
-point.
-
-If both active players push their hands into the inner ring at the same time,
-the active table range shrinks and the animals are forced into a tighter
-scoring area.
-
-This is a TestZone TrialRun prototype only, not a live I009 project state.
+The page loops through the concept without requiring player input.

@@ -20,11 +20,11 @@ const hands = [
 ];
 
 const animals = [
-  { id: 0, label: "A", type: "bunny", x: 462, y: 318, look: -1.45, retreat: 30, decision: 36, chain: { x: 0, y: 0 } },
-  { id: 1, label: "B", type: "cat", x: 528, y: 306, look: 0.05, retreat: 34, decision: 42, chain: { x: 0, y: 0 } },
-  { id: 2, label: "C", type: "duck", x: 565, y: 366, look: 0.8, retreat: 32, decision: 46, chain: { x: -28, y: -12 } },
-  { id: 3, label: "D", type: "hedgehog", x: 493, y: 404, look: 1.75, retreat: 28, decision: 38, chain: { x: -38, y: 18 } },
-  { id: 4, label: "E", type: "hamster", x: 438, y: 370, look: 2.8, retreat: 31, decision: 34, chain: { x: 14, y: 22 } },
+  { id: 0, label: "A", type: "bunny", x: 462, y: 318, look: -1.45, triggerAt: 7.1, retreat: 30, decision: 36, chain: { x: 0, y: 0 } },
+  { id: 1, label: "B", type: "cat", x: 528, y: 306, look: 0.05, triggerAt: 7.75, retreat: 34, decision: 42, chain: { x: 0, y: 0 } },
+  { id: 2, label: "C", type: "duck", x: 565, y: 366, look: 0.8, triggerAt: 8.4, retreat: 32, decision: 46, chain: { x: -28, y: -12 } },
+  { id: 3, label: "D", type: "hedgehog", x: 493, y: 404, look: 1.75, triggerAt: 9.05, retreat: 28, decision: 38, chain: { x: -38, y: 18 } },
+  { id: 4, label: "E", type: "hamster", x: 438, y: 370, look: 2.8, triggerAt: 9.7, retreat: 31, decision: 34, chain: { x: 14, y: 22 } },
 ];
 
 const phases = [
@@ -49,36 +49,36 @@ const phases = [
   {
     key: "Per-Animal Trigger",
     start: 7.1,
-    end: 8.7,
-    caption: "Note.4: each animal owns its own scare trigger, so panic starts in staggered pulses.",
+    end: 10.1,
+    caption: "Note.4: triggers resolve per animal. Only the animal that sees danger panics first.",
   },
   {
     key: "Retreat Short Step",
-    start: 8.7,
-    end: 10.1,
-    caption: "Note.2: scared animals retreat only a short distance away from the threatening hand.",
+    start: 10.1,
+    end: 11.6,
+    caption: "Note.2: each triggered animal retreats on its own clock, not as a group.",
   },
   {
     key: "Wait 0.75s",
-    start: 10.1,
-    end: 10.85,
-    caption: "Note.2: after the short retreat, animals pause in place for about 0.75 seconds.",
+    start: 11.6,
+    end: 12.35,
+    caption: "Note.2: only animals that already retreated show their 0.75 second pause.",
   },
   {
     key: "Recheck Direction",
-    start: 10.85,
-    end: 13.6,
-    caption: "Note.3: animals re-run sightline logic, biased toward moving opposite the threat direction.",
+    start: 12.35,
+    end: 14.2,
+    caption: "Note.3: animals re-run sightline logic after their own pause window.",
   },
   {
     key: "Chain Influence",
-    start: 13.6,
-    end: 15.8,
+    start: 14.2,
+    end: 16.2,
     caption: "Note.4: retreating animals can bump into others and alter their movement paths.",
   },
   {
     key: "Reset",
-    start: 15.8,
+    start: 16.2,
     end: 18,
     caption: "The loop resets as a concept animation, not a playable control prototype.",
   },
@@ -177,7 +177,7 @@ function drawTable(t) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  if (t > 7.1 && t < 15.8) {
+  if (t > 7.1 && t < 16.2) {
     const flash = Math.sin(t * 12) * 0.5 + 0.5;
     ctx.strokeStyle = `rgba(255, 95, 109, ${0.28 + flash * 0.26})`;
     ctx.lineWidth = 6;
@@ -189,11 +189,12 @@ function drawTable(t) {
 }
 
 function drawSightlines(t) {
-  const alpha = t < 2.1 ? 0.32 : t < 10.85 ? 0.2 : 0.26;
+  const alpha = t < 2.1 ? 0.32 : t < 12.35 ? 0.2 : 0.26;
   for (const animal of animals) {
     const position = animalPosition(animal, t);
-    const panic = t > 7.1 && t < 10.85;
-    const recheck = t >= 10.85 && t < 13.6;
+    const state = animalScareState(animal, t);
+    const panic = state.trigger || state.retreat;
+    const recheck = state.recheck;
     const look = animal.look + (panic ? Math.sin(t * 14 + animal.id) * 0.32 : 0) + (recheck ? 0.45 : 0);
     drawVisionCone(position.x, position.y, look, recheck ? 138 : 118, alpha, panic, recheck);
   }
@@ -264,8 +265,11 @@ function drawScareZonesBetweenHands(t) {
 }
 
 function drawPaths(t) {
-  if (t < 8.7) return;
+  if (t < 7.55) return;
   for (const animal of animals) {
+    const state = animalScareState(animal, t);
+    if (!state.retreat && !state.wait && !state.recheck && !state.chain) continue;
+
     const base = { x: animal.x, y: animal.y };
     const shortStop = retreatStop(animal, t);
     const decisionStop = decisionStopPoint(animal, t);
@@ -273,15 +277,15 @@ function drawPaths(t) {
     ctx.save();
     ctx.lineWidth = 3;
     ctx.setLineDash([9, 7]);
-    ctx.strokeStyle = t < 10.85 ? "rgba(255, 95, 109, 0.72)" : "rgba(87, 191, 255, 0.62)";
+    ctx.strokeStyle = state.recheck || state.chain ? "rgba(87, 191, 255, 0.62)" : "rgba(255, 95, 109, 0.72)";
     ctx.beginPath();
     ctx.moveTo(base.x, base.y);
     ctx.lineTo(shortStop.x, shortStop.y);
-    if (t >= 10.85) ctx.lineTo(decisionStop.x, decisionStop.y);
+    if (state.recheck || state.chain) ctx.lineTo(decisionStop.x, decisionStop.y);
     ctx.stroke();
     ctx.setLineDash([]);
-    drawArrowHead(shortStop.x, shortStop.y, base.x, base.y, t < 10.85 ? "#ff6d78" : "#57bfff");
-    if (t >= 10.85) drawArrowHead(decisionStop.x, decisionStop.y, shortStop.x, shortStop.y, "#57bfff");
+    drawArrowHead(shortStop.x, shortStop.y, base.x, base.y, state.recheck || state.chain ? "#57bfff" : "#ff6d78");
+    if (state.recheck || state.chain) drawArrowHead(decisionStop.x, decisionStop.y, shortStop.x, shortStop.y, "#57bfff");
     ctx.restore();
   }
 }
@@ -309,7 +313,7 @@ function drawLanesAndHands(t) {
 
 function drawHand(hand, tip, progress, moving, t) {
   const base = lanePoint(hand.angle, 340);
-  const panic = t > 7.1 && t < 10.85 && moving;
+  const panic = t > 7.1 && t < 10.1 && moving;
   ctx.save();
   ctx.translate(tip.x, tip.y);
   ctx.rotate(hand.angle + Math.PI);
@@ -361,21 +365,19 @@ function drawMotionTicks(x, y, angle, color) {
 function drawAnimals(t) {
   for (const animal of animals) {
     const position = animalPosition(animal, t);
-    const triggered = perAnimalScare(animal, t);
-    const panic = t > 7.1 && t < 10.85;
-    const wait = t >= 10.1 && t < 10.85;
-    const recheck = t >= 10.85 && t < 13.6;
-    const chain = t >= 13.6 && t < 15.8 && animal.id >= 2;
-    const pulse = triggered || panic ? 1 + 0.12 * Math.sin(t * 18 + animal.id) : 1;
+    const state = animalScareState(animal, t);
+    const panic = state.trigger || state.retreat;
+    const chain = state.chain && animal.id >= 2;
+    const pulse = panic ? 1 + 0.12 * Math.sin(t * 18 + animal.id) : 1;
 
-    if (triggered) drawAnimalTriggerPulse(position.x, position.y, animal);
-    if (wait) drawWaitBadge(position.x, position.y, animal);
-    if (recheck && animal.id <= 2) drawDecisionBadge(position.x, position.y, animal);
+    if (state.trigger) drawAnimalTriggerPulse(position.x, position.y, animal);
+    if (state.wait) drawWaitBadge(position.x, position.y, animal);
+    if (state.recheck) drawDecisionBadge(position.x, position.y, animal);
 
     ctx.save();
     ctx.translate(position.x, position.y);
     ctx.scale(pulse, pulse);
-    ctx.fillStyle = panic ? "#ff6d78" : chain ? "#9ee493" : recheck ? "#d9f2ff" : "#f5e7bf";
+    ctx.fillStyle = panic ? "#ff6d78" : chain ? "#9ee493" : state.recheck ? "#d9f2ff" : "#f5e7bf";
     ctx.strokeStyle = panic ? "#ffd166" : chain ? "#1d6b4f" : "#2b2520";
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -446,7 +448,7 @@ function drawDecisionBadge(x, y, animal) {
 }
 
 function drawChainInfluence(t) {
-  if (t < 13.6 || t > 15.8) return;
+  if (t < 14.2 || t > 16.2) return;
   const c = animalPosition(animals[2], t);
   const d = animalPosition(animals[3], t);
   const e = animalPosition(animals[4], t);
@@ -492,9 +494,22 @@ function drawImpactStar(x, y) {
 function animalPosition(animal, t) {
   const retreat = retreatVector(animal, t);
   const decision = decisionVector(animal, t);
-  const chainK = smoothstep((t - 13.6) / 1.2) * (t < 15.8 ? 1 : 0);
-  const retreatK = t < 8.7 ? 0 : t < 10.1 ? smoothstep((t - 8.7) / 1.4) : t < 16 ? 1 - smoothstep((t - 15.2) / 0.8) * 0.2 : 0;
-  const decisionK = t < 10.85 ? 0 : t < 13.6 ? smoothstep((t - 10.85) / 2.3) : t < 15.8 ? 1 : 1 - smoothstep((t - 15.8) / 1.4);
+  const state = animalScareState(animal, t);
+  const chainK = smoothstep((t - Math.max(14.2, animal.triggerAt + 4.5)) / 1.2) * (t < 16.2 ? 1 : 0);
+  const retreatK = state.sinceTrigger < 0.45
+    ? 0
+    : state.sinceTrigger < 1.65
+      ? smoothstep((state.sinceTrigger - 0.45) / 1.2)
+      : t < 16.2
+        ? 1 - smoothstep((t - 15.4) / 0.8) * 0.18
+        : 0;
+  const decisionK = state.sinceTrigger < 2.4
+    ? 0
+    : state.sinceTrigger < 4.5
+      ? smoothstep((state.sinceTrigger - 2.4) / 2.1)
+      : t < 16.2
+        ? 1
+        : 1 - smoothstep((t - 16.2) / 1.2);
   return {
     x: animal.x + retreat.x * retreatK + decision.x * decisionK + animal.chain.x * chainK,
     y: animal.y + retreat.y * retreatK + decision.y * decisionK + animal.chain.y * chainK,
@@ -545,9 +560,16 @@ function isMovingHand(hand, t) {
   return hand.active && ((hand.id === "p1" && t > 1.2 && t < 7.8) || (hand.id === "p2" && t > 3.1 && t < 8.3));
 }
 
-function perAnimalScare(animal, t) {
-  const start = 7.1 + animal.id * 0.22;
-  return t >= start && t < start + 0.78;
+function animalScareState(animal, t) {
+  const sinceTrigger = t - animal.triggerAt;
+  return {
+    sinceTrigger,
+    trigger: sinceTrigger >= 0 && sinceTrigger < 0.45,
+    retreat: sinceTrigger >= 0.45 && sinceTrigger < 1.65,
+    wait: sinceTrigger >= 1.65 && sinceTrigger < 1.65 + retreatPauseSeconds,
+    recheck: sinceTrigger >= 1.65 + retreatPauseSeconds && sinceTrigger < 4.5,
+    chain: t >= 14.2 && t < 16.2 && sinceTrigger >= 3.2,
+  };
 }
 
 function drawBunny() {
@@ -681,10 +703,11 @@ function threatStack(t) {
   if (t < 2.1) return 0;
   if (t < 4.8) return smoothstep((t - 2.1) / 2.7) * 0.42;
   if (t < 7.1) return 0.42 + smoothstep((t - 4.8) / 2.3) * 0.5;
-  if (t < 10.85) return 1;
-  if (t < 13.6) return 0.56 + Math.sin(t * 4) * 0.05;
-  if (t < 15.8) return 0.38;
-  return Math.max(0, 0.38 - smoothstep((t - 15.8) / 2.2) * 0.38);
+  if (t < 10.1) return 0.92 + Math.sin(t * 5) * 0.04;
+  if (t < 12.35) return 0.68 + Math.sin(t * 4) * 0.05;
+  if (t < 14.2) return 0.5 + Math.sin(t * 4) * 0.04;
+  if (t < 16.2) return 0.38;
+  return Math.max(0, 0.38 - smoothstep((t - 16.2) / 1.8) * 0.38);
 }
 
 function drawArrowHead(x, y, fromX, fromY, color) {
@@ -741,6 +764,7 @@ window.__roundTableTrial = {
       phase: phaseAt(t).key,
       threat: Number(threatStack(t).toFixed(2)),
       retreatPauseSeconds,
+      animalTriggers: animals.map((animal) => ({ label: animal.label, triggerAt: animal.triggerAt })),
       oppositeThreatBias: 0.78,
       chainReaction: true,
       controlsEnabled: false,

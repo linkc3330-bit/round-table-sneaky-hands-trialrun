@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Round Table Sneaky Hands TrialRun</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="topbar" aria-label="Game status">
+        <div>
+          <h1>Round Table Sneaky Hands</h1>
+          <p>Two hands, one quiet table, very nervous snacks.</p>
+        </div>
+        <div class="scoreboard" aria-live="polite">
+          <div class="score-card p1">
+            <span>P1</span>
+            <strong id="p1Score">0</strong>
+          </div>
+          <div class="score-card p2">
+            <span>P2</span>
+            <strong id="p2Score">0</strong>
+          </div>
+          <button id="resetButton" type="button">Reset</button>
+        </div>
+      </section>
+
+      <section class="stage-wrap">
+        <canvas
+          id="gameCanvas"
+          width="960"
+          height="640"
+          aria-label="Top-down round table game canvas"
+        ></canvas>
+        <div id="roundBanner" class="round-banner" aria-live="assertive"></div>
+      </section>
+
+      <section class="control-deck" aria-label="Touch controls">
+        <div class="touch-pad" data-player="p1">
+          <span>P1 WASD</span>
+          <div class="pad-grid">
+            <button data-key="w" aria-label="P1 up">W</button>
+            <button data-key="a" aria-label="P1 left">A</button>
+            <button data-key="s" aria-label="P1 down">S</button>
+            <button data-key="d" aria-label="P1 right">D</button>
+          </div>
+        </div>
+        <div id="message" class="message" aria-live="polite">
+          Sneak slowly. Fast movement near the animals scares them.
+        </div>
+        <div class="touch-pad" data-player="p2">
+          <span>P2 Arrows</span>
+          <div class="pad-grid">
+            <button data-key="ArrowUp" aria-label="P2 up">Up</button>
+            <button data-key="ArrowLeft" aria-label="P2 left">Left</button>
+            <button data-key="ArrowDown" aria-label="P2 down">Down</button>
+            <button data-key="ArrowRight" aria-label="P2 right">Right</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./game.js"></script>
+  </body>
+</html>

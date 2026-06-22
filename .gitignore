@@ -1,0 +1,10 @@
+REPORT_BACK.md
+TRIALRUN_CONTEXT.md
+artifacts/
+node_modules/
+.env
+.env.*
+.codex/
+.agents/
+.claude/
+.aider*

@@ -1,13 +1,12 @@
 # Sneaky Hands Sightline Animation
 
-Autoplay concept animation for Note.1. This is not a playable game build.
+Autoplay concept animation for Notes 1-4. This is not a playable game build.
 
-## Note.1 Focus
+## Notes Covered
 
-- Animals have a sightline / attention range.
-- A moving hand inside that sightline builds threat.
-- Other hands inside the watched range add pressure.
-- Threat range should scale with player count.
-- When threat crosses the scare threshold, animals retreat away from the moving hand.
+- Note.1: animals have sightlines / attention range and can be scared by moving hands in view.
+- Note.2: after scare, animals retreat a short distance, then pause in place for about 0.75 seconds.
+- Note.3: after the pause, animals re-run movement judgment with a higher bias away from the threat direction.
+- Note.4: scare triggers are per-animal, and retreating animals can bump into other animals and alter their paths.
 
 The page loops through the concept without requiring player input.

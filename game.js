@@ -5,7 +5,8 @@ const bannerEl = document.querySelector("#roundBanner");
 const phaseLabelEl = document.querySelector("#phaseLabel");
 
 const table = { x: 500, y: 350, r: 282, inner: 112 };
-const loopSeconds = 13.5;
+const loopSeconds = 18;
+const retreatPauseSeconds = 0.75;
 let startTime = performance.now();
 let lastPhase = "";
 
@@ -19,55 +20,85 @@ const hands = [
 ];
 
 const animals = [
-  { id: 0, type: "bunny", x: 462, y: 318, look: -1.45 },
-  { id: 1, type: "cat", x: 528, y: 306, look: 0.05 },
-  { id: 2, type: "duck", x: 565, y: 366, look: 0.8 },
-  { id: 3, type: "hedgehog", x: 493, y: 404, look: 1.75 },
-  { id: 4, type: "hamster", x: 438, y: 370, look: 2.8 },
+  { id: 0, label: "A", type: "bunny", x: 462, y: 318, look: -1.45, retreat: 30, decision: 36, chain: { x: 0, y: 0 } },
+  { id: 1, label: "B", type: "cat", x: 528, y: 306, look: 0.05, retreat: 34, decision: 42, chain: { x: 0, y: 0 } },
+  { id: 2, label: "C", type: "duck", x: 565, y: 366, look: 0.8, retreat: 32, decision: 46, chain: { x: -28, y: -12 } },
+  { id: 3, label: "D", type: "hedgehog", x: 493, y: 404, look: 1.75, retreat: 28, decision: 38, chain: { x: -38, y: 18 } },
+  { id: 4, label: "E", type: "hamster", x: 438, y: 370, look: 2.8, retreat: 31, decision: 34, chain: { x: 14, y: 22 } },
+];
+
+const phases = [
+  {
+    key: "Sightlines",
+    start: 0,
+    end: 2.1,
+    caption: "Note.1: animals have sightlines. A hand inside sightline is watched.",
+  },
+  {
+    key: "Motion Seen",
+    start: 2.1,
+    end: 4.8,
+    caption: "Watched hand movement starts pressure before contact.",
+  },
+  {
+    key: "Threat Stack",
+    start: 4.8,
+    end: 7.1,
+    caption: "Nearby hands add scare zone pressure between hand ranges.",
+  },
+  {
+    key: "Per-Animal Trigger",
+    start: 7.1,
+    end: 8.7,
+    caption: "Note.4: each animal owns its own scare trigger, so panic starts in staggered pulses.",
+  },
+  {
+    key: "Retreat Short Step",
+    start: 8.7,
+    end: 10.1,
+    caption: "Note.2: scared animals retreat only a short distance away from the threatening hand.",
+  },
+  {
+    key: "Wait 0.75s",
+    start: 10.1,
+    end: 10.85,
+    caption: "Note.2: after the short retreat, animals pause in place for about 0.75 seconds.",
+  },
+  {
+    key: "Recheck Direction",
+    start: 10.85,
+    end: 13.6,
+    caption: "Note.3: animals re-run sightline logic, biased toward moving opposite the threat direction.",
+  },
+  {
+    key: "Chain Influence",
+    start: 13.6,
+    end: 15.8,
+    caption: "Note.4: retreating animals can bump into others and alter their movement paths.",
+  },
+  {
+    key: "Reset",
+    start: 15.8,
+    end: 18,
+    caption: "The loop resets as a concept animation, not a playable control prototype.",
+  },
 ];
 
 function phaseAt(t) {
-  if (t < 2.2) {
-    return {
-      key: "Sightlines",
-      caption: "Note.1: animals have sightlines. A hand inside sightline is watched.",
-    };
-  }
-  if (t < 5.1) {
-    return {
-      key: "Motion Seen",
-      caption: "When a watched hand moves, threat starts building before contact.",
-    };
-  }
-  if (t < 8.2) {
-    return {
-      key: "Threat Stack",
-      caption: "Other hands inside the same sightline add pressure to the animal.",
-    };
-  }
-  if (t < 10.8) {
-    return {
-      key: "Scare",
-      caption: "Threat crosses the scare threshold. Animals retreat away from the moving hand.",
-    };
-  }
-  return {
-    key: "Reset",
-    caption: "The loop resets as a concept animation, not a playable control prototype.",
-  };
+  return phases.find((phase) => t >= phase.start && t < phase.end) ?? phases[0];
 }
 
 function handProgress(hand, t) {
   if (!hand.active) return 0.16 + hand.offset + Math.sin(t * 1.3 + hand.angle) * 0.02;
-  if (hand.id === "p1") return easePulse(t, 1.2, 7.7, 0.08, 0.86);
-  if (hand.id === "p2") return easePulse(t, 3.2, 8.3, 0.08, 0.76);
+  if (hand.id === "p1") return easePulse(t, 1.2, 7.8, 0.08, 0.86);
+  if (hand.id === "p2") return easePulse(t, 3.1, 8.3, 0.08, 0.76);
   return 0.15;
 }
 
 function easePulse(t, start, peak, low, high) {
   if (t < start) return low;
   if (t < peak) return low + (high - low) * smoothstep((t - start) / (peak - start));
-  if (t < 11.2) return high - (high - low) * smoothstep((t - peak) / (11.2 - peak));
+  if (t < 16) return high - (high - low) * smoothstep((t - peak) / (16 - peak));
   return low;
 }
 
@@ -92,8 +123,11 @@ function draw(now) {
   drawTable(t);
   drawSightlines(t);
   drawThreatRange(t);
+  drawScareZonesBetweenHands(t);
+  drawPaths(t);
   drawLanesAndHands(t);
   drawAnimals(t);
+  drawChainInfluence(t);
   drawLogo();
   drawRuleCard(t);
   drawTimeline(t, phase);
@@ -143,10 +177,10 @@ function drawTable(t) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  if (t > 8.2 && t < 11.2) {
+  if (t > 7.1 && t < 15.8) {
     const flash = Math.sin(t * 12) * 0.5 + 0.5;
-    ctx.strokeStyle = `rgba(255, 95, 109, ${0.35 + flash * 0.35})`;
-    ctx.lineWidth = 7;
+    ctx.strokeStyle = `rgba(255, 95, 109, ${0.28 + flash * 0.26})`;
+    ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(0, 0, 168, 0, Math.PI * 2);
     ctx.stroke();
@@ -155,19 +189,25 @@ function drawTable(t) {
 }
 
 function drawSightlines(t) {
-  const alpha = t < 2.2 ? 0.32 : t < 8.2 ? 0.22 : 0.14;
+  const alpha = t < 2.1 ? 0.32 : t < 10.85 ? 0.2 : 0.26;
   for (const animal of animals) {
-    const panic = t > 8.2 && t < 10.8;
-    const look = panic ? animal.look + Math.sin(t * 12 + animal.id) * 0.32 : animal.look;
-    drawVisionCone(animal.x, animal.y, look, 118, alpha, panic);
+    const position = animalPosition(animal, t);
+    const panic = t > 7.1 && t < 10.85;
+    const recheck = t >= 10.85 && t < 13.6;
+    const look = animal.look + (panic ? Math.sin(t * 14 + animal.id) * 0.32 : 0) + (recheck ? 0.45 : 0);
+    drawVisionCone(position.x, position.y, look, recheck ? 138 : 118, alpha, panic, recheck);
   }
 }
 
-function drawVisionCone(x, y, angle, length, alpha, panic) {
+function drawVisionCone(x, y, angle, length, alpha, panic, recheck) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  ctx.fillStyle = panic ? `rgba(255, 95, 109, ${alpha})` : `rgba(255, 209, 102, ${alpha})`;
+  ctx.fillStyle = panic
+    ? `rgba(255, 95, 109, ${alpha})`
+    : recheck
+      ? `rgba(87, 191, 255, ${alpha})`
+      : `rgba(255, 209, 102, ${alpha})`;
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.lineTo(length, -34);
@@ -197,13 +237,62 @@ function drawThreatRange(t) {
   ctx.restore();
 }
 
+function drawScareZonesBetweenHands(t) {
+  if (t < 4.8 || t > 9.1) return;
+  const p1 = handTip(hands[0], t);
+  const p2 = handTip(hands[1], t);
+  const alpha = t < 7.1 ? 0.14 : 0.3 + Math.sin(t * 12) * 0.08;
+
+  ctx.save();
+  ctx.strokeStyle = `rgba(255, 209, 102, ${alpha + 0.18})`;
+  ctx.fillStyle = `rgba(255, 209, 102, ${alpha})`;
+  ctx.lineWidth = 4;
+  ctx.setLineDash([8, 9]);
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.quadraticCurveTo(table.x + 12, table.y - 18, p2.x, p2.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, 58, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff0ca";
+  ctx.font = "900 13px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("hand-to-hand scare zone", table.x + 38, table.y - 88);
+  ctx.restore();
+}
+
+function drawPaths(t) {
+  if (t < 8.7) return;
+  for (const animal of animals) {
+    const base = { x: animal.x, y: animal.y };
+    const shortStop = retreatStop(animal, t);
+    const decisionStop = decisionStopPoint(animal, t);
+
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.setLineDash([9, 7]);
+    ctx.strokeStyle = t < 10.85 ? "rgba(255, 95, 109, 0.72)" : "rgba(87, 191, 255, 0.62)";
+    ctx.beginPath();
+    ctx.moveTo(base.x, base.y);
+    ctx.lineTo(shortStop.x, shortStop.y);
+    if (t >= 10.85) ctx.lineTo(decisionStop.x, decisionStop.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    drawArrowHead(shortStop.x, shortStop.y, base.x, base.y, t < 10.85 ? "#ff6d78" : "#57bfff");
+    if (t >= 10.85) drawArrowHead(decisionStop.x, decisionStop.y, shortStop.x, shortStop.y, "#57bfff");
+    ctx.restore();
+  }
+}
+
 function drawLanesAndHands(t) {
   for (const hand of hands) {
     const progress = handProgress(hand, t);
     const outer = lanePoint(hand.angle, 318);
     const inner = lanePoint(hand.angle, 70);
     const tip = lanePoint(hand.angle, 318 - (318 - 70) * progress);
-    const moving = hand.active && ((hand.id === "p1" && t > 1.2 && t < 7.7) || (hand.id === "p2" && t > 3.2 && t < 8.3));
+    const moving = isMovingHand(hand, t);
 
     ctx.strokeStyle = moving ? "rgba(255, 209, 102, 0.86)" : hexToRgba(hand.color, hand.active ? 0.58 : 0.28);
     ctx.lineWidth = hand.active ? 9 : 5;
@@ -220,7 +309,7 @@ function drawLanesAndHands(t) {
 
 function drawHand(hand, tip, progress, moving, t) {
   const base = lanePoint(hand.angle, 340);
-  const panic = t > 8.2 && t < 10.8 && moving;
+  const panic = t > 7.1 && t < 10.85 && moving;
   ctx.save();
   ctx.translate(tip.x, tip.y);
   ctx.rotate(hand.angle + Math.PI);
@@ -270,15 +359,24 @@ function drawMotionTicks(x, y, angle, color) {
 }
 
 function drawAnimals(t) {
-  const panic = t > 8.2 && t < 10.8;
   for (const animal of animals) {
-    const retreat = panic ? retreatOffset(animal, t) : { x: 0, y: 0 };
-    const pulse = panic ? 1 + 0.18 * Math.sin(t * 18 + animal.id) : 1;
+    const position = animalPosition(animal, t);
+    const triggered = perAnimalScare(animal, t);
+    const panic = t > 7.1 && t < 10.85;
+    const wait = t >= 10.1 && t < 10.85;
+    const recheck = t >= 10.85 && t < 13.6;
+    const chain = t >= 13.6 && t < 15.8 && animal.id >= 2;
+    const pulse = triggered || panic ? 1 + 0.12 * Math.sin(t * 18 + animal.id) : 1;
+
+    if (triggered) drawAnimalTriggerPulse(position.x, position.y, animal);
+    if (wait) drawWaitBadge(position.x, position.y, animal);
+    if (recheck && animal.id <= 2) drawDecisionBadge(position.x, position.y, animal);
+
     ctx.save();
-    ctx.translate(animal.x + retreat.x, animal.y + retreat.y);
+    ctx.translate(position.x, position.y);
     ctx.scale(pulse, pulse);
-    ctx.fillStyle = panic ? "#ff6d78" : "#f5e7bf";
-    ctx.strokeStyle = panic ? "#ffd166" : "#2b2520";
+    ctx.fillStyle = panic ? "#ff6d78" : chain ? "#9ee493" : recheck ? "#d9f2ff" : "#f5e7bf";
+    ctx.strokeStyle = panic ? "#ffd166" : chain ? "#1d6b4f" : "#2b2520";
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.ellipse(0, 0, 22, 17, 0, 0, Math.PI * 2);
@@ -288,21 +386,168 @@ function drawAnimals(t) {
     if (animal.type === "cat") drawCat();
     if (animal.type === "duck") drawDuck();
     if (animal.type === "hedgehog") drawHedgehog();
+    if (animal.type === "hamster") drawHamster();
     ctx.fillStyle = "#111";
     ctx.beginPath();
     ctx.arc(-7, -2, 2.3, 0, Math.PI * 2);
     ctx.arc(7, -2, 2.3, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = "#101217";
+    ctx.font = "900 10px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText(animal.label, 0, 5);
     ctx.restore();
   }
 }
 
-function retreatOffset(animal, t) {
-  const dx = animal.x - table.x;
-  const dy = animal.y - table.y;
-  const dist = Math.hypot(dx, dy) || 1;
-  const amount = 26 + Math.sin(t * 12 + animal.id) * 8;
-  return { x: (dx / dist) * amount, y: (dy / dist) * amount };
+function drawAnimalTriggerPulse(x, y, animal) {
+  const alpha = 0.48 + Math.sin(performance.now() / 70 + animal.id) * 0.16;
+  ctx.save();
+  ctx.strokeStyle = `rgba(255, 95, 109, ${alpha})`;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(x, y, 34 + animal.id * 2, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "#ffcad0";
+  ctx.font = "900 11px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(`trigger ${animal.label}`, x, y - 43);
+  ctx.restore();
+}
+
+function drawWaitBadge(x, y, animal) {
+  ctx.save();
+  ctx.fillStyle = "rgba(20, 22, 26, 0.86)";
+  ctx.strokeStyle = "#ffd166";
+  ctx.lineWidth = 2;
+  roundRect(ctx, x - 43, y + 24, 86, 25, 7);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#ffd166";
+  ctx.font = "900 11px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(`wait ${retreatPauseSeconds.toFixed(2)}s`, x, y + 41);
+  ctx.restore();
+}
+
+function drawDecisionBadge(x, y, animal) {
+  ctx.save();
+  ctx.fillStyle = "rgba(20, 22, 26, 0.86)";
+  ctx.strokeStyle = "#57bfff";
+  ctx.lineWidth = 2;
+  roundRect(ctx, x - 54, y - 52, 108, 25, 7);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#d9f2ff";
+  ctx.font = "900 11px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(animal.id === 1 ? "higher odds: away" : "recheck sightline", x, y - 35);
+  ctx.restore();
+}
+
+function drawChainInfluence(t) {
+  if (t < 13.6 || t > 15.8) return;
+  const c = animalPosition(animals[2], t);
+  const d = animalPosition(animals[3], t);
+  const e = animalPosition(animals[4], t);
+  const pulse = 0.5 + Math.sin(t * 14) * 0.5;
+
+  ctx.save();
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = `rgba(158, 228, 147, ${0.55 + pulse * 0.28})`;
+  ctx.setLineDash([10, 7]);
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.y);
+  ctx.lineTo(d.x, d.y);
+  ctx.lineTo(e.x, e.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = "#9ee493";
+  ctx.font = "900 14px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("collision changes another animal path", (c.x + d.x) / 2, (c.y + d.y) / 2 - 28);
+  drawImpactStar((c.x + d.x) / 2, (c.y + d.y) / 2);
+  ctx.restore();
+}
+
+function drawImpactStar(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "#ffd166";
+  ctx.strokeStyle = "#171a1f";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i += 1) {
+    const r = i % 2 === 0 ? 17 : 7;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function animalPosition(animal, t) {
+  const retreat = retreatVector(animal, t);
+  const decision = decisionVector(animal, t);
+  const chainK = smoothstep((t - 13.6) / 1.2) * (t < 15.8 ? 1 : 0);
+  const retreatK = t < 8.7 ? 0 : t < 10.1 ? smoothstep((t - 8.7) / 1.4) : t < 16 ? 1 - smoothstep((t - 15.2) / 0.8) * 0.2 : 0;
+  const decisionK = t < 10.85 ? 0 : t < 13.6 ? smoothstep((t - 10.85) / 2.3) : t < 15.8 ? 1 : 1 - smoothstep((t - 15.8) / 1.4);
+  return {
+    x: animal.x + retreat.x * retreatK + decision.x * decisionK + animal.chain.x * chainK,
+    y: animal.y + retreat.y * retreatK + decision.y * decisionK + animal.chain.y * chainK,
+  };
+}
+
+function retreatStop(animal, t) {
+  const v = retreatVector(animal, t);
+  return { x: animal.x + v.x, y: animal.y + v.y };
+}
+
+function decisionStopPoint(animal, t) {
+  const r = retreatVector(animal, t);
+  const d = decisionVector(animal, t);
+  return { x: animal.x + r.x + d.x, y: animal.y + r.y + d.y };
+}
+
+function retreatVector(animal, t) {
+  const threat = threatAnchor(t);
+  const away = normalized(animal.x - threat.x, animal.y - threat.y);
+  return { x: away.x * animal.retreat, y: away.y * animal.retreat };
+}
+
+function decisionVector(animal, t) {
+  const threat = threatAnchor(t);
+  const away = normalized(animal.x - threat.x, animal.y - threat.y);
+  const sideways = { x: -away.y, y: away.x };
+  const sideSign = animal.id % 2 === 0 ? 1 : -1;
+  const oppositeThreatBias = 0.78;
+  return {
+    x: (away.x * oppositeThreatBias + sideways.x * 0.22 * sideSign) * animal.decision,
+    y: (away.y * oppositeThreatBias + sideways.y * 0.22 * sideSign) * animal.decision,
+  };
+}
+
+function threatAnchor(t) {
+  const p1 = handTip(hands[0], t);
+  const p2 = handTip(hands[1], t);
+  return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+}
+
+function handTip(hand, t) {
+  const progress = handProgress(hand, t);
+  return lanePoint(hand.angle, 318 - (318 - 70) * progress);
+}
+
+function isMovingHand(hand, t) {
+  return hand.active && ((hand.id === "p1" && t > 1.2 && t < 7.8) || (hand.id === "p2" && t > 3.1 && t < 8.3));
+}
+
+function perAnimalScare(animal, t) {
+  const start = 7.1 + animal.id * 0.22;
+  return t >= start && t < start + 0.78;
 }
 
 function drawBunny() {
@@ -345,6 +590,14 @@ function drawHedgehog() {
   }
 }
 
+function drawHamster() {
+  ctx.fillStyle = "#e7c98b";
+  ctx.beginPath();
+  ctx.arc(-16, -10, 7, 0, Math.PI * 2);
+  ctx.arc(16, -10, 7, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function drawLogo() {
   ctx.save();
   ctx.translate(126, 116);
@@ -362,68 +615,92 @@ function drawLogo() {
   ctx.fillText("HANDS", 0, 22);
   ctx.font = "700 10px system-ui";
   ctx.fillStyle = "#f7edda";
-  ctx.fillText("sightline demo", 0, 39);
+  ctx.fillText("note 1-4 demo", 0, 39);
   ctx.restore();
 }
 
 function drawRuleCard(t) {
   ctx.save();
-  ctx.translate(815, 124);
+  ctx.translate(816, 142);
   ctx.fillStyle = "#fff0ca";
   ctx.strokeStyle = "#6b472e";
   ctx.lineWidth = 3;
-  roundRect(ctx, -88, -64, 176, 156, 10);
+  roundRect(ctx, -102, -82, 204, 192, 10);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = "#47311f";
   ctx.font = "900 14px system-ui";
   ctx.textAlign = "center";
-  ctx.fillText("Note.1 model", 0, -40);
+  ctx.fillText("Note.1-4 model", 0, -58);
   ctx.font = "700 11px system-ui";
   [
-    "Animals have sightlines",
-    "Moving hand is noticed",
-    "Other hands add threat",
-    "Threat range scales",
-    "Scare triggers retreat",
-  ].forEach((line, i) => ctx.fillText(line, 0, -14 + i * 21));
+    "1. Sightline sees hand",
+    "2. Retreat short step",
+    `2. Pause ${retreatPauseSeconds.toFixed(2)}s`,
+    "3. Recheck movement",
+    "3. Bias opposite threat",
+    "4. Individual triggers",
+    "4. Collision affects path",
+  ].forEach((line, i) => ctx.fillText(line, 0, -34 + i * 20));
   ctx.fillStyle = "#a53d38";
-  ctx.fillText(`Threat ${Math.round(threatStack(t) * 100)}%`, 0, 80);
+  ctx.fillText(`Threat ${Math.round(threatStack(t) * 100)}%`, 0, 94);
   ctx.restore();
 }
 
 function drawTimeline(t, phase) {
   const steps = [
-    ["1", "Sightlines"],
-    ["2", "Hand moves"],
-    ["3", "Threat stacks"],
-    ["4", "Scare retreat"],
+    ["1", "Sightline", "Sightlines"],
+    ["2", "Move", "Motion Seen"],
+    ["3", "Stack", "Threat Stack"],
+    ["4", "Trigger", "Per-Animal Trigger"],
+    ["5", "Retreat", "Retreat Short Step"],
+    ["6", "Wait", "Wait 0.75s"],
+    ["7", "Recheck", "Recheck Direction"],
+    ["8", "Bump", "Chain Influence"],
   ];
   ctx.save();
-  ctx.translate(245, 642);
+  ctx.translate(34, 648);
   steps.forEach((step, i) => {
-    const active = phase.key.toLowerCase().includes(step[1].split(" ")[0].toLowerCase());
-    const x = i * 138;
+    const active = phase.key === step[2];
+    const x = i * 119;
     ctx.fillStyle = active ? "#ffd166" : "#fff0ca";
     ctx.strokeStyle = "#7f5332";
     ctx.lineWidth = 2;
-    roundRect(ctx, x, -42, 124, 64, 8);
+    roundRect(ctx, x, -38, 108, 58, 8);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = "#1d4d7a";
-    ctx.font = "900 13px system-ui";
+    ctx.font = "900 12px system-ui";
     ctx.textAlign = "left";
-    ctx.fillText(`${step[0]}. ${step[1]}`, x + 10, -7);
+    ctx.fillText(`${step[0]}. ${step[1]}`, x + 9, -5);
   });
   ctx.restore();
 }
 
 function threatStack(t) {
-  if (t < 2.2) return 0;
-  if (t < 5.1) return smoothstep((t - 2.2) / 2.9) * 0.42;
-  if (t < 8.2) return 0.42 + smoothstep((t - 5.1) / 3.1) * 0.48;
-  if (t < 10.8) return 1;
-  return Math.max(0, 1 - smoothstep((t - 10.8) / 2.7));
+  if (t < 2.1) return 0;
+  if (t < 4.8) return smoothstep((t - 2.1) / 2.7) * 0.42;
+  if (t < 7.1) return 0.42 + smoothstep((t - 4.8) / 2.3) * 0.5;
+  if (t < 10.85) return 1;
+  if (t < 13.6) return 0.56 + Math.sin(t * 4) * 0.05;
+  if (t < 15.8) return 0.38;
+  return Math.max(0, 0.38 - smoothstep((t - 15.8) / 2.2) * 0.38);
+}
+
+function drawArrowHead(x, y, fromX, fromY, color) {
+  const angle = Math.atan2(y - fromY, x - fromX);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-12, -7);
+  ctx.lineTo(-9, 0);
+  ctx.lineTo(-12, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 function lanePoint(angle, radius) {
@@ -431,6 +708,11 @@ function lanePoint(angle, radius) {
     x: table.x + Math.cos(angle) * radius,
     y: table.y + Math.sin(angle) * radius,
   };
+}
+
+function normalized(x, y) {
+  const length = Math.hypot(x, y) || 1;
+  return { x: x / length, y: y / length };
 }
 
 function hexToRgba(hex, alpha) {
@@ -455,9 +737,12 @@ window.__roundTableTrial = {
   getState() {
     const t = ((performance.now() - startTime) / 1000) % loopSeconds;
     return {
-      mode: "autoplay-note1-animation",
+      mode: "autoplay-note1-4-animation",
       phase: phaseAt(t).key,
       threat: Number(threatStack(t).toFixed(2)),
+      retreatPauseSeconds,
+      oppositeThreatBias: 0.78,
+      chainReaction: true,
       controlsEnabled: false,
     };
   },

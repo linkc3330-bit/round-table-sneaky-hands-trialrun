@@ -37,26 +37,20 @@
       </section>
 
       <section class="control-deck" aria-label="Touch controls">
-        <div class="touch-pad" data-player="p1">
-          <span>P1 WASD</span>
-          <div class="pad-grid">
-            <button data-key="w" aria-label="P1 up">W</button>
-            <button data-key="a" aria-label="P1 left">A</button>
-            <button data-key="s" aria-label="P1 down">S</button>
-            <button data-key="d" aria-label="P1 right">D</button>
-          </div>
+        <div class="touch-pad">
+          <span>P1 lane</span>
+          <button class="hold-button p1-button" data-hold="p1" aria-label="Hold to advance P1">
+            Hold P1
+          </button>
         </div>
         <div id="message" class="message" aria-live="polite">
-          Sneak slowly. Fast movement near the animals scares them.
+          Right-click and hold near a hand lane to advance. Release to pull back.
         </div>
-        <div class="touch-pad" data-player="p2">
-          <span>P2 Arrows</span>
-          <div class="pad-grid">
-            <button data-key="ArrowUp" aria-label="P2 up">Up</button>
-            <button data-key="ArrowLeft" aria-label="P2 left">Left</button>
-            <button data-key="ArrowDown" aria-label="P2 down">Down</button>
-            <button data-key="ArrowRight" aria-label="P2 right">Right</button>
-          </div>
+        <div class="touch-pad">
+          <span>P2 lane</span>
+          <button class="hold-button p2-button" data-hold="p2" aria-label="Hold to advance P2">
+            Hold P2
+          </button>
         </div>
       </section>
     </main>

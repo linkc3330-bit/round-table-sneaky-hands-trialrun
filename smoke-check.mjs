@@ -5,9 +5,12 @@ const requiredStrings = [
   ["index.html", "gameCanvas"],
   ["index.html", "p1Score"],
   ["index.html", "p2Score"],
+  ["index.html", "data-hold=\"p1\""],
+  ["index.html", "data-hold=\"p2\""],
   ["game.js", "catchAnimal"],
   ["game.js", "scareDistance"],
-  ["game.js", "pointerTargets"],
+  ["game.js", "contextmenu"],
+  ["game.js", "nearestLane"],
   ["styles.css", "aspect-ratio"],
 ];
 

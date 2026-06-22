@@ -168,7 +168,7 @@ canvas {
 
 .touch-pad {
   display: grid;
-  grid-template-columns: 54px 1fr;
+  grid-template-columns: 74px 1fr;
   gap: 10px;
   align-items: center;
   padding: 10px;
@@ -181,32 +181,23 @@ canvas {
   text-transform: uppercase;
 }
 
-.pad-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+.hold-button {
+  min-height: 48px;
+  padding: 0 14px;
+  font-size: 0.92rem;
+  font-weight: 800;
 }
 
-.pad-grid button {
-  min-height: 32px;
-  padding: 0 6px;
-  font-size: 0.83rem;
+.p1-button {
+  border-color: rgba(100, 199, 255, 0.52);
 }
 
-.pad-grid button:first-child {
-  grid-column: 2;
+.p2-button {
+  border-color: rgba(183, 117, 255, 0.52);
 }
 
-.pad-grid button:nth-child(2) {
-  grid-column: 1;
-}
-
-.pad-grid button:nth-child(3) {
-  grid-column: 2;
-}
-
-.pad-grid button:nth-child(4) {
-  grid-column: 3;
+.hold-button:active {
+  transform: translateY(1px);
 }
 
 .message {

@@ -3,12 +3,11 @@ import { readFile } from "node:fs/promises";
 const requiredFiles = ["index.html", "styles.css", "game.js"];
 const requiredStrings = [
   ["index.html", "gameCanvas"],
-  ["index.html", "p1Score"],
-  ["index.html", "p2Score"],
   ["index.html", "data-hold=\"p1\""],
   ["index.html", "data-hold=\"p2\""],
-  ["game.js", "catchAnimal"],
-  ["game.js", "scareDistance"],
+  ["game.js", "drawLogo"],
+  ["game.js", "drawRuleCard"],
+  ["game.js", "drawFlowCards"],
   ["game.js", "contextmenu"],
   ["game.js", "nearestLane"],
   ["game.js", "compressedTableRadius"],
@@ -26,4 +25,4 @@ for (const [file, needle] of requiredStrings) {
   if (!text.includes(needle)) throw new Error(`${file} missing ${needle}`);
 }
 
-console.log("smoke-check passed: static prototype files and key game hooks exist");
+console.log("smoke-check passed: diagram-first board remake files and hooks exist");

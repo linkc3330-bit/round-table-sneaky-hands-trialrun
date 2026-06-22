@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Round Table Sneaky Hands TrialRun</title>
+    <title>Sneaky Hands TrialRun</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="game-shell">
-      <section class="topbar" aria-label="Game status">
-        <div>
-          <h1>Round Table Sneaky Hands</h1>
-          <p>Two hands, one quiet table, very nervous snacks.</p>
+    <main class="board-shell">
+      <section class="status-bar" aria-label="Game status">
+        <div class="brand">
+          <span class="brand-mark">Sneaky<br />Hands</span>
+          <p>Right-click and hold a hand lane. Release before the animals panic.</p>
         </div>
         <div class="scoreboard" aria-live="polite">
           <div class="score-card p1">
@@ -26,32 +26,22 @@
         </div>
       </section>
 
-      <section class="stage-wrap">
+      <section class="board-frame">
         <canvas
           id="gameCanvas"
-          width="960"
-          height="640"
-          aria-label="Top-down round table game canvas"
+          width="1000"
+          height="720"
+          aria-label="Sneaky Hands round table board"
         ></canvas>
         <div id="roundBanner" class="round-banner" aria-live="assertive"></div>
       </section>
 
-      <section class="control-deck" aria-label="Touch controls">
-        <div class="touch-pad">
-          <span>P1 lane</span>
-          <button class="hold-button p1-button" data-hold="p1" aria-label="Hold to advance P1">
-            Hold P1
-          </button>
-        </div>
+      <section class="mobile-controls" aria-label="Touch controls">
+        <button class="hold-button p1-button" data-hold="p1" type="button">Hold P1 Lane</button>
         <div id="message" class="message" aria-live="polite">
-          Right-click and hold near a hand lane to advance. Release to pull back.
+          Right-click and hold near P1 or P2 to sneak inward.
         </div>
-        <div class="touch-pad">
-          <span>P2 lane</span>
-          <button class="hold-button p2-button" data-hold="p2" aria-label="Hold to advance P2">
-            Hold P2
-          </button>
-        </div>
+        <button class="hold-button p2-button" data-hold="p2" type="button">Hold P2 Lane</button>
       </section>
     </main>
 
